@@ -1,0 +1,27 @@
+{
+  "name": "ajo",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@category-labs/mera": "latest",
+    "@scure/bip32": "^1.5.0",
+    "@scure/bip39": "^1.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "solc": "^0.8.37",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}
