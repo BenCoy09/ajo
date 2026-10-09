@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
 import {
   createAccount, signIn, getBalances, getTestAusd, sendAusd,
-  createCircleTx, joinCircleTx, contributeTx, payoutTx, loadCircle,
-  friendlyError, publicClient, EXPLORER, type CircleView,
+  createCircleTx, joinCircleTx, contributeTx, payoutTx, loadCircle, loadActivity,
+  friendlyError, publicClient, EXPLORER, type CircleView, type Activity,
 } from "./lib/wallet";
 
 type Hex = `0x${string}`;
@@ -25,6 +25,7 @@ export default function App() {
 
   const [circleId, setCircleId] = useState<bigint | undefined>(circleFromUrl());
   const [circle, setCircle] = useState<CircleView | null>();
+  const [activity, setActivity] = useState<Activity[]>([]);
   const [cAmount, setCAmount] = useState("10");
   const [cMembers, setCMembers] = useState("2");
   const [cSeconds, setCSeconds] = useState("120");
@@ -49,6 +50,17 @@ export default function App() {
     };
     tick();
     const t = setInterval(tick, 4000);
+    return () => { stop = true; clearInterval(t); };
+  }, [circleId]);
+
+  useEffect(() => {
+    if (circleId === undefined) { setActivity([]); return; }
+    let stop = false;
+    const tick = async () => {
+      try { const a = await loadActivity(circleId); if (!stop) setActivity(a); } catch { /* ignore */ }
+    };
+    tick();
+    const t = setInterval(tick, 6000);
     return () => { stop = true; clearInterval(t); };
   }, [circleId]);
 
@@ -107,7 +119,6 @@ export default function App() {
     setMsg("Payout sent to this round's recipient.");
   });
 
-  // derived circle state
   const me = address?.toLowerCase();
   const idx = circle ? circle.members.findIndex((m) => m.toLowerCase() === me) : -1;
   const isMember = idx >= 0;
@@ -120,6 +131,15 @@ export default function App() {
   const recipient = active ? circle!.members[circle!.currentRound] : undefined;
   const pot = circle ? formatUnits(circle.contribution * BigInt(paidN), circle.decimals) : "0";
   const invite = circleId !== undefined ? `${location.origin}/?circle=${circleId}` : "";
+
+  const describe = (a: Activity) => {
+    const who = a.who.toLowerCase() === me ? "You" : short(a.who);
+    const amt = a.amount !== undefined && circle ? formatUnits(a.amount, circle.decimals) : "";
+    if (a.kind === "joined") return `${who} joined`;
+    if (a.kind === "contributed") return `${who} paid ${amt} AUSD (round ${(a.round ?? 0) + 1})`;
+    if (a.kind === "payout") return `${who} received ${amt} AUSD (round ${(a.round ?? 0) + 1})`;
+    return `${who} missed round ${(a.round ?? 0) + 1}`;
+  };
 
   return (
     <main style={{ fontFamily: "system-ui", maxWidth: 420, margin: "0 auto", padding: 24 }}>
@@ -198,6 +218,20 @@ export default function App() {
                 <button disabled={busy} onClick={payout} style={btn}>Pay out this round</button>
               )}
               {active && !ready && <p>Payout unlocks when everyone has paid, or when the round time runs out.</p>}
+
+              <h4>Live activity <small style={{ fontWeight: "normal", color: "#666" }}>(via Envio HyperRPC)</small></h4>
+              {activity.length === 0 ? (
+                <p style={{ color: "#666" }}>No activity yet.</p>
+              ) : (
+                <ul>
+                  {[...activity].reverse().slice(0, 8).map((a) => (
+                    <li key={a.tx + a.kind + a.who}>
+                      {describe(a)}{" "}
+                      <a href={EXPLORER + a.tx} target="_blank" rel="noreferrer">tx</a>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <p style={{ wordBreak: "break-all" }}>Invite link: {invite}</p>
               <button onClick={() => navigator.clipboard.writeText(invite)} style={light}>Copy invite link</button>

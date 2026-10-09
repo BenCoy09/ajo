@@ -23,6 +23,10 @@ import { monadTestnet } from "viem/chains";
 
 const CRED_KEY = "ajo.credential";
 
+// RPC endpoints come from environment variables (never hardcode keys)
+const ALCHEMY = import.meta.env.VITE_ALCHEMY_RPC as string | undefined;
+const ENVIO = import.meta.env.VITE_ENVIO_RPC as string | undefined;
+
 export const AUSD: Hex = "0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC";
 const AUSD_FAUCET: Hex = "0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C";
 export const CIRCLE: Hex = "0xa678625cb9c2475a683d1f14bc15b847308f7311";
@@ -46,10 +50,23 @@ const circleAbi = parseAbi([
   "function hasPaid(uint256, uint32, address) view returns (bool)",
   "event CircleCreated(uint256 indexed id, address indexed creator, address token, uint256 contribution, uint32 maxMembers, uint32 roundDuration)",
 ]);
+const activityAbi = parseAbi([
+  "event MemberJoined(uint256 indexed id, address indexed member)",
+  "event Contributed(uint256 indexed id, uint32 indexed round, address indexed member, uint256 amount)",
+  "event PayoutMade(uint256 indexed id, uint32 indexed round, address indexed recipient, uint256 amount)",
+  "event MissedRound(uint256 indexed id, uint32 indexed round, address indexed member)",
+]);
 
+// Alchemy: balances, circle state, receipts, and every signed transaction
 export const publicClient = createPublicClient({
   chain: monadTestnet,
-  transport: http(),
+  transport: http(ALCHEMY),
+});
+
+// Envio HyperRPC: read-only event logs for the live activity feed
+const activityClient = createPublicClient({
+  chain: monadTestnet,
+  transport: http(ENVIO ?? ALCHEMY),
 });
 
 function deriveEvmKey(prfOutput: Uint8Array, index = 0): Uint8Array {
@@ -122,7 +139,7 @@ function makeClient(session: ReturnType<typeof createSecp256k1SigningSession>) {
   return createWalletClient({
     account: toViemAccount(session),
     chain: monadTestnet,
-    transport: http(),
+    transport: http(ALCHEMY),
   });
 }
 
@@ -207,6 +224,38 @@ export async function loadCircle(id: bigint): Promise<CircleView | null> {
     id, creator, contribution, decimals: await ausdDecimals(), maxMembers,
     roundDuration, currentRound, roundStart, started, finished, members, paid,
   };
+}
+
+// ---------- Live activity feed (Envio HyperRPC event logs) ----------
+
+export type Activity = {
+  kind: "joined" | "contributed" | "payout" | "missed";
+  who: Hex;
+  round?: number;
+  amount?: bigint;
+  tx: Hex;
+  block: bigint;
+};
+
+export async function loadActivity(id: bigint): Promise<Activity[]> {
+  const logs = await activityClient.getLogs({
+    address: CIRCLE,
+    events: activityAbi,
+    fromBlock: 0n,
+  });
+  const out: Activity[] = [];
+  for (const l of logs) {
+    const a = l.args as unknown as {
+      id?: bigint; member?: Hex; recipient?: Hex; round?: number; amount?: bigint;
+    };
+    if (a.id !== id || l.blockNumber === null) continue;
+    const base = { tx: l.transactionHash, block: l.blockNumber };
+    if (l.eventName === "MemberJoined") out.push({ ...base, kind: "joined", who: a.member! });
+    else if (l.eventName === "Contributed") out.push({ ...base, kind: "contributed", who: a.member!, round: a.round, amount: a.amount });
+    else if (l.eventName === "PayoutMade") out.push({ ...base, kind: "payout", who: a.recipient!, round: a.round, amount: a.amount });
+    else if (l.eventName === "MissedRound") out.push({ ...base, kind: "missed", who: a.member!, round: a.round });
+  }
+  return out.sort((x, y) => Number(x.block - y.block));
 }
 
 export async function createCircleTx(amount: string, maxMembers: number, roundSeconds: number): Promise<bigint> {
