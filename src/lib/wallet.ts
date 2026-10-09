@@ -29,7 +29,7 @@ const ENVIO = import.meta.env.VITE_ENVIO_RPC as string | undefined;
 
 export const AUSD: Hex = "0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC";
 const AUSD_FAUCET: Hex = "0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C";
-export const CIRCLE: Hex = "0xa678625cb9c2475a683d1f14bc15b847308f7311";
+export const CIRCLE: Hex = "0x2fbf29f4b8b46b198b9bb988e3da4eb5897e8063";
 export const EXPLORER = "https://testnet.monadvision.com/tx/";
 
 const erc20 = parseAbi([
@@ -39,7 +39,9 @@ const erc20 = parseAbi([
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
 ]);
+
 const faucetAbi = parseAbi(["function requestFunds(address recipient)"]);
+
 const circleAbi = parseAbi([
   "function createCircle(address token, uint256 contribution, uint32 maxMembers, uint32 roundDuration) returns (uint256)",
   "function joinCircle(uint256 id)",
@@ -50,6 +52,7 @@ const circleAbi = parseAbi([
   "function hasPaid(uint256, uint32, address) view returns (bool)",
   "event CircleCreated(uint256 indexed id, address indexed creator, address token, uint256 contribution, uint32 maxMembers, uint32 roundDuration)",
 ]);
+
 const activityAbi = parseAbi([
   "event MemberJoined(uint256 indexed id, address indexed member)",
   "event Contributed(uint256 indexed id, uint32 indexed round, address indexed member, uint256 amount)",
@@ -72,7 +75,11 @@ const activityClient = createPublicClient({
 function deriveEvmKey(prfOutput: Uint8Array, index = 0): Uint8Array {
   const seed = mnemonicToSeedSync(entropyToMnemonic(prfOutput, wordlist));
   const node = HDKey.fromMasterSeed(seed).derive(`m/44'/60'/0'/0/${index}`);
-  if (node.privateKey === null) throw new Error("derivation produced no key");
+
+  if (node.privateKey === null) {
+    throw new Error("derivation produced no key");
+  }
+
   return node.privateKey;
 }
 
@@ -80,19 +87,24 @@ function addressFrom(prfOutput: Uint8Array): Hex {
   const session = createSecp256k1SigningSession({
     privateKey: deriveEvmKey(prfOutput),
   });
+
   const address = toViemAccount(session).address;
   session.end();
+
   return address;
 }
 
 async function promptPrf(forcePick = false): Promise<Uint8Array> {
   const stored = localStorage.getItem(CRED_KEY);
   const known = !forcePick && stored ? JSON.parse(stored) : undefined;
+
   const { prfOutput, credentialId } = await getPasskeyPrfOutput({
     rpId: location.hostname,
     credential: known,
   });
+
   localStorage.setItem(CRED_KEY, JSON.stringify({ credentialId }));
+
   return prfOutput;
 }
 
@@ -104,6 +116,7 @@ export async function createAccount(): Promise<Hex> {
       displayName: "Ajo member",
     },
   });
+
   localStorage.setItem(
     CRED_KEY,
     JSON.stringify({
@@ -111,6 +124,7 @@ export async function createAccount(): Promise<Hex> {
       transports: created.transports,
     }),
   );
+
   return addressFrom(created.prfOutput);
 }
 
@@ -119,23 +133,38 @@ export async function signIn(forcePick = false): Promise<Hex> {
 }
 
 let decimalsPromise: Promise<number> | undefined;
+
 function ausdDecimals(): Promise<number> {
   decimalsPromise ??= publicClient.readContract({
-    address: AUSD, abi: erc20, functionName: "decimals",
+    address: AUSD,
+    abi: erc20,
+    functionName: "decimals",
   });
+
   return decimalsPromise;
 }
 
 export async function getBalances(address: Hex) {
   const [mon, raw, decimals] = await Promise.all([
     publicClient.getBalance({ address }),
-    publicClient.readContract({ address: AUSD, abi: erc20, functionName: "balanceOf", args: [address] }),
+    publicClient.readContract({
+      address: AUSD,
+      abi: erc20,
+      functionName: "balanceOf",
+      args: [address],
+    }),
     ausdDecimals(),
   ]);
-  return { mon: formatUnits(mon, 18), ausd: formatUnits(raw, decimals) };
+
+  return {
+    mon: formatUnits(mon, 18),
+    ausd: formatUnits(raw, decimals),
+  };
 }
 
-function makeClient(session: ReturnType<typeof createSecp256k1SigningSession>) {
+function makeClient(
+  session: ReturnType<typeof createSecp256k1SigningSession>,
+) {
   return createWalletClient({
     account: toViemAccount(session),
     chain: monadTestnet,
@@ -147,9 +176,11 @@ async function withSession<T>(
   fn: (client: ReturnType<typeof makeClient>) => Promise<T>,
 ): Promise<T> {
   const prfOutput = await promptPrf();
+
   const session = createSecp256k1SigningSession({
     privateKey: deriveEvmKey(prfOutput),
   });
+
   try {
     return await fn(makeClient(session));
   } finally {
@@ -171,6 +202,7 @@ export function getTestAusd(address: Hex): Promise<Hex> {
 
 export async function sendAusd(to: Hex, amount: string): Promise<Hex> {
   const decimals = await ausdDecimals();
+
   const hash = await withSession((client) =>
     client.writeContract({
       address: AUSD,
@@ -180,7 +212,9 @@ export async function sendAusd(to: Hex, amount: string): Promise<Hex> {
       gas: 150_000n,
     }),
   );
+
   await publicClient.waitForTransactionReceipt({ hash });
+
   return hash;
 }
 
@@ -203,26 +237,65 @@ export type CircleView = {
 
 export async function loadCircle(id: bigint): Promise<CircleView | null> {
   const r = await publicClient.readContract({
-    address: CIRCLE, abi: circleAbi, functionName: "getCircle", args: [id],
+    address: CIRCLE,
+    abi: circleAbi,
+    functionName: "getCircle",
+    args: [id],
   });
-  const [, creator, contribution, maxMembers, roundDuration, currentRound, roundStart, started, finished] = r;
-  if (creator === zeroAddress) return null;
-  const members = [...(await publicClient.readContract({
-    address: CIRCLE, abi: circleAbi, functionName: "getMembers", args: [id],
-  }))] as Hex[];
+
+  const [
+    ,
+    creator,
+    contribution,
+    maxMembers,
+    roundDuration,
+    currentRound,
+    roundStart,
+    started,
+    finished,
+  ] = r;
+
+  if (creator === zeroAddress) {
+    return null;
+  }
+
+  const members = [
+    ...(await publicClient.readContract({
+      address: CIRCLE,
+      abi: circleAbi,
+      functionName: "getMembers",
+      args: [id],
+    })),
+  ] as Hex[];
+
   const active = started && !finished;
+
   const paid = await Promise.all(
     members.map((m) =>
       active
         ? publicClient.readContract({
-            address: CIRCLE, abi: circleAbi, functionName: "hasPaid", args: [id, currentRound, m],
+            address: CIRCLE,
+            abi: circleAbi,
+            functionName: "hasPaid",
+            args: [id, currentRound, m],
           })
         : Promise.resolve(false),
     ),
   );
+
   return {
-    id, creator, contribution, decimals: await ausdDecimals(), maxMembers,
-    roundDuration, currentRound, roundStart, started, finished, members, paid,
+    id,
+    creator,
+    contribution,
+    decimals: await ausdDecimals(),
+    maxMembers,
+    roundDuration,
+    currentRound,
+    roundStart,
+    started,
+    finished,
+    members,
+    paid,
   };
 }
 
@@ -243,65 +316,144 @@ export async function loadActivity(id: bigint): Promise<Activity[]> {
     events: activityAbi,
     fromBlock: 0n,
   });
+
   const out: Activity[] = [];
+
   for (const l of logs) {
     const a = l.args as unknown as {
-      id?: bigint; member?: Hex; recipient?: Hex; round?: number; amount?: bigint;
+      id?: bigint;
+      member?: Hex;
+      recipient?: Hex;
+      round?: number;
+      amount?: bigint;
     };
-    if (a.id !== id || l.blockNumber === null) continue;
-    const base = { tx: l.transactionHash, block: l.blockNumber };
-    if (l.eventName === "MemberJoined") out.push({ ...base, kind: "joined", who: a.member! });
-    else if (l.eventName === "Contributed") out.push({ ...base, kind: "contributed", who: a.member!, round: a.round, amount: a.amount });
-    else if (l.eventName === "PayoutMade") out.push({ ...base, kind: "payout", who: a.recipient!, round: a.round, amount: a.amount });
-    else if (l.eventName === "MissedRound") out.push({ ...base, kind: "missed", who: a.member!, round: a.round });
+
+    if (a.id !== id || l.blockNumber === null) {
+      continue;
+    }
+
+    const base = {
+      tx: l.transactionHash,
+      block: l.blockNumber,
+    };
+
+    if (l.eventName === "MemberJoined") {
+      out.push({ ...base, kind: "joined", who: a.member! });
+    } else if (l.eventName === "Contributed") {
+      out.push({
+        ...base,
+        kind: "contributed",
+        who: a.member!,
+        round: a.round,
+        amount: a.amount,
+      });
+    } else if (l.eventName === "PayoutMade") {
+      out.push({
+        ...base,
+        kind: "payout",
+        who: a.recipient!,
+        round: a.round,
+        amount: a.amount,
+      });
+    } else if (l.eventName === "MissedRound") {
+      out.push({
+        ...base,
+        kind: "missed",
+        who: a.member!,
+        round: a.round,
+      });
+    }
   }
+
   return out.sort((x, y) => Number(x.block - y.block));
 }
 
-export async function createCircleTx(amount: string, maxMembers: number, roundSeconds: number): Promise<bigint> {
+export async function createCircleTx(
+  amount: string,
+  maxMembers: number,
+  roundSeconds: number,
+): Promise<bigint> {
   const decimals = await ausdDecimals();
+
   const hash = await withSession((client) =>
     client.writeContract({
       address: CIRCLE,
       abi: circleAbi,
       functionName: "createCircle",
-      args: [AUSD, parseUnits(amount, decimals), maxMembers, roundSeconds],
+      args: [
+        AUSD,
+        parseUnits(amount, decimals),
+        maxMembers,
+        roundSeconds,
+      ],
       gas: 350_000n,
     }),
   );
+
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  const logs = parseEventLogs({ abi: circleAbi, logs: receipt.logs, eventName: "CircleCreated" });
+
+  const logs = parseEventLogs({
+    abi: circleAbi,
+    logs: receipt.logs,
+    eventName: "CircleCreated",
+  });
+
   return logs[0].args.id;
 }
 
 export async function joinCircleTx(id: bigint): Promise<Hex> {
   const hash = await withSession((client) =>
     client.writeContract({
-      address: CIRCLE, abi: circleAbi, functionName: "joinCircle", args: [id], gas: 250_000n,
+      address: CIRCLE,
+      abi: circleAbi,
+      functionName: "joinCircle",
+      args: [id],
+      gas: 250_000n,
     }),
   );
+
   await publicClient.waitForTransactionReceipt({ hash });
+
   return hash;
 }
 
 /** One passkey tap: approves AUSD if needed, then contributes. */
-export async function contributeTx(id: bigint, contribution: bigint): Promise<Hex> {
+export async function contributeTx(
+  id: bigint,
+  contribution: bigint,
+): Promise<Hex> {
   return withSession(async (client) => {
     const owner = client.account.address;
+
     const allowance = await publicClient.readContract({
-      address: AUSD, abi: erc20, functionName: "allowance", args: [owner, CIRCLE],
+      address: AUSD,
+      abi: erc20,
+      functionName: "allowance",
+      args: [owner, CIRCLE],
     });
+
     if (allowance < contribution) {
       const a = await client.writeContract({
-        address: AUSD, abi: erc20, functionName: "approve",
-        args: [CIRCLE, contribution * 20n], gas: 100_000n,
+        address: AUSD,
+        abi: erc20,
+        functionName: "approve",
+        args: [CIRCLE, contribution * 20n],
+        gas: 100_000n,
       });
+
       await publicClient.waitForTransactionReceipt({ hash: a });
     }
+
     const hash = await client.writeContract({
-      address: CIRCLE, abi: circleAbi, functionName: "contribute", args: [id], gas: 200_000n,
+      address: CIRCLE,
+      abi: circleAbi,
+      functionName: "contribute",
+      args: [id],
+      gas: 200_000n,
     });
+
     await publicClient.waitForTransactionReceipt({ hash });
+
     return hash;
   });
 }
@@ -309,10 +461,16 @@ export async function contributeTx(id: bigint, contribution: bigint): Promise<He
 export async function payoutTx(id: bigint): Promise<Hex> {
   const hash = await withSession((client) =>
     client.writeContract({
-      address: CIRCLE, abi: circleAbi, functionName: "payout", args: [id], gas: 400_000n,
+      address: CIRCLE,
+      abi: circleAbi,
+      functionName: "payout",
+      args: [id],
+      gas: 400_000n,
     }),
   );
+
   await publicClient.waitForTransactionReceipt({ hash });
+
   return hash;
 }
 
@@ -329,5 +487,6 @@ export function friendlyError(e: unknown): string {
         return `Something went wrong (${e.code}).`;
     }
   }
+
   return e instanceof Error ? e.message : "Something went wrong.";
 }

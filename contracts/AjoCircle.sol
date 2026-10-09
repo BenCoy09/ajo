@@ -75,9 +75,25 @@ contract AjoCircle {
         emit MemberJoined(id, msg.sender);
 
         if (c.members.length == c.maxMembers) {
+            _shuffle(c.members, id);
             c.started = true;
             c.roundStart = uint64(block.timestamp);
             emit CircleStarted(id, c.roundStart);
+        }
+    }
+
+    /// Shuffles the payout order so the creator doesn't always collect first.
+    /// Note: block-based randomness is good enough for a demo, but the last
+    /// member to join could influence it. A production version should use a
+    /// verifiable random source.
+    function _shuffle(address[] storage m, uint256 id) private {
+        uint256 seed = uint256(
+            keccak256(abi.encodePacked(blockhash(block.number - 1), block.prevrandao, id, msg.sender))
+        );
+        for (uint256 i = m.length - 1; i > 0; i--) {
+            uint256 j = seed % (i + 1);
+            seed = uint256(keccak256(abi.encodePacked(seed, i)));
+            (m[i], m[j]) = (m[j], m[i]);
         }
     }
 
