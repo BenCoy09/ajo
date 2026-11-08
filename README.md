@@ -65,17 +65,18 @@ Built for Monad. Add your RPC URL and contract address to `.env` when you deploy
 
 ## Status
 
-Early stage. The homepage is live. Create, join and pay flows are in progress.
+Early stage, running on testnet. You can create an account, start or join a circle, contribute each round and pay out. Amounts are in AUSD, with MON used for gas, and live circle activity is read through Envio HyperRPC.
 
 ## Roadmap
 
 - [x] Homepage with interactive circle demo
-- [ ] Wallet sign in
-- [ ] Create a circle
-- [ ] Invite and join
-- [ ] Pay into a round
-- [ ] Payout and next round
-- [ ] Circle dashboard
+- [x] Account sign in
+- [x] Create a circle
+- [x] Invite link and join
+- [x] Pay into a round
+- [x] Payout and next round
+- [x] Live circle activity
+- [ ] Mainnet launch
 
 ## Author
 
