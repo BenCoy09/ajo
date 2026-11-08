@@ -1,0 +1,68 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&display=swap");
+
+:root{--bg:#123B33;--deep:#0C2A24;--ring:#1F6B5C;--gold:#F0B429;--cream:#F6EBCB;--mut:#a9c2b7;color-scheme:dark}
+html{scroll-behavior:smooth}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--cream);font:400 17px/1.55 "Instrument Sans",system-ui,sans-serif;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+h1,h2,h3,h4,.brand{font-family:"Bricolage Grotesque","Instrument Sans",sans-serif;letter-spacing:-.02em;line-height:1.1;margin:0}
+a{color:var(--gold)}
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+.narrow{max-width:460px}
+header.top{display:flex;justify-content:space-between;align-items:center;padding:18px 0}
+.brand{font-weight:800;font-size:28px;display:flex;align-items:center;gap:10px;color:var(--cream)}
+.chip{font-size:14px;color:var(--mut)}
+.btn{display:block;width:100%;font:600 16px "Instrument Sans",sans-serif;border:0;border-radius:999px;padding:14px 24px;margin-bottom:12px;cursor:pointer;background:var(--gold);color:var(--deep);text-align:center;text-decoration:none}
+.btn.light{background:transparent;color:var(--cream);border:2px solid var(--ring)}
+.btn:hover:not(:disabled){filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row .btn{width:auto;flex:1 1 160px}
+.input{display:block;width:100%;padding:13px 14px;margin-bottom:12px;font:inherit;border-radius:12px;border:2px solid #c9bd96;background:#fffaf0;color:var(--deep)}
+label{display:block;font-size:15px;color:var(--mut);margin-bottom:4px}
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:center;padding:30px 0 60px}
+.hero h1{font-size:clamp(42px,7vw,76px);font-weight:800}
+.lead{font-size:20px;color:var(--mut);max-width:30em;margin:20px 0 28px}
+.stage{background:var(--deep);border-radius:28px;padding:20px;text-align:center}
+.stage svg{width:100%;max-width:380px;height:auto}
+.dot{transition:fill .5s}
+.readout{min-height:3.2em;margin:6px 0 14px;font-size:18px}
+.readout b{color:var(--gold)}
+.ctl{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:14px;color:var(--mut);font-size:15px}
+.ctl label{margin:0}
+input[type=range]{accent-color:var(--gold);width:50%}
+.small{color:var(--mut);font-size:13px;margin-top:12px}
+section.band{padding:60px 0;border-top:1px solid var(--ring)}
+section.band h2{font-size:clamp(30px,4.5vw,46px);font-weight:800;margin-bottom:30px;max-width:16em}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;counter-reset:s}
+.steps div{counter-increment:s}
+.steps h3{font-size:24px;margin-bottom:8px}
+.steps h3::before{content:counter(s);display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--gold);color:var(--deep);font-size:18px;margin-right:10px}
+.steps p{color:var(--mut);margin:0}
+footer.foot{padding:30px 0 50px;color:var(--mut);font-size:15px;border-top:1px solid var(--ring)}
+/* dashboard */
+.card{background:var(--deep);border-radius:20px;padding:20px;margin-bottom:16px}
+.card h2,.card h3{margin-bottom:12px}
+.card h2{font-size:28px}
+.card h3{font-size:22px}
+.card h4{font-size:18px;margin:16px 0 8px}
+.card ul{padding-left:20px;margin:8px 0 16px}
+.card li{margin-bottom:4px}
+.muted{color:var(--mut)}
+.break{word-break:break-all}
+.err{color:#ff9d8a}
+.ok{color:var(--gold)}
+/* splash */
+#splash{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;transition:transform .9s cubic-bezier(.7,0,.2,1)}
+#splash.out{transform:translateY(-100%)}
+#splash svg{width:min(62vw,300px)}
+#splash .word{font:800 54px "Bricolage Grotesque",sans-serif;fill:var(--cream);opacity:0;animation:fade .8s 2.2s forwards}
+.ringdraw{stroke-dasharray:600;stroke-dashoffset:600;animation:draw 1.4s .1s forwards}
+.sd{opacity:0;animation:fade .4s forwards}
+.orbit{transform-origin:150px 140px;animation:spin 1.8s .9s cubic-bezier(.5,0,.2,1) forwards;opacity:0}
+.skip{position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px));background:none;border:0;color:var(--mut);font:inherit;cursor:pointer}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fade{to{opacity:1}}
+@keyframes spin{from{transform:rotate(-360deg);opacity:1}to{transform:rotate(0);opacity:1}}
+@media(max-width:820px){.hero,.steps{grid-template-columns:1fr}.hero{padding-top:10px}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01s!important;animation-delay:0s!important;transition-duration:.01s!important}html{scroll-behavior:auto}}
